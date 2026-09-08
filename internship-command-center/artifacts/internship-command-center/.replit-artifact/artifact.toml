@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Internship Search Bot"
+description = "A focused career search workspace for Indian software and IT students to discover relevant internships, compare opportunities, generate tailored application materials, and track a 30-day application sprint."
+version = "1.0.0"
+id = "artifacts/internship-command-center"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19384
+
+[services.development]
+run = "pnpm --filter @workspace/internship-command-center run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/internship-command-center", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/internship-command-center/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19384"
+BASE_PATH = "/"

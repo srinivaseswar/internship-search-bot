@@ -1,0 +1,339 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: opportunities
+    description: Internship opportunity search and detail
+  - name: applications
+    description: Application pipeline tracking
+  - name: profile
+    description: Candidate profile and tailoring
+  - name: dashboard
+    description: Career sprint summaries
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /opportunities:
+    get:
+      operationId: listOpportunities
+      tags: [opportunities]
+      summary: List matching internships
+      parameters:
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Location"
+        - $ref: "#/components/parameters/Mode"
+        - $ref: "#/components/parameters/Focus"
+        - $ref: "#/components/parameters/MinStipend"
+        - $ref: "#/components/parameters/Sort"
+      responses:
+        "200":
+          description: Matching opportunities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Opportunity"
+  /opportunities/{id}:
+    get:
+      operationId: getOpportunity
+      tags: [opportunities]
+      summary: Get internship details
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Opportunity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Opportunity"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateOpportunity
+      tags: [opportunities]
+      summary: Save or update an opportunity
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpportunityUpdate"
+      responses:
+        "200":
+          description: Updated opportunity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Opportunity"
+  /applications:
+    get:
+      operationId: listApplications
+      tags: [applications]
+      summary: List tracked applications
+      responses:
+        "200":
+          description: Applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Application"
+    post:
+      operationId: createApplication
+      tags: [applications]
+      summary: Track an application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationInput"
+      responses:
+        "201":
+          description: Created application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+  /applications/{id}:
+    patch:
+      operationId: updateApplication
+      tags: [applications]
+      summary: Update an application stage
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationUpdate"
+      responses:
+        "200":
+          description: Updated application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+  /profile:
+    get:
+      operationId: getProfile
+      tags: [profile]
+      summary: Get candidate profile
+      responses:
+        "200":
+          description: Candidate profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+    patch:
+      operationId: updateProfile
+      tags: [profile]
+      summary: Update candidate profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated candidate profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get career sprint summary
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: number
+    Search:
+      name: search
+      in: query
+      schema:
+        type: string
+    Location:
+      name: location
+      in: query
+      schema:
+        type: string
+    Mode:
+      name: mode
+      in: query
+      schema:
+        type: string
+    Focus:
+      name: focus
+      in: query
+      schema:
+        type: string
+    MinStipend:
+      name: minStipend
+      in: query
+      schema:
+        type: number
+    Sort:
+      name: sort
+      in: query
+      schema:
+        type: string
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    Opportunity:
+      type: object
+      required: [id, company, role, location, mode, stipend, eligibility, skills, deadline, applyUrl, source, fitScore, salaryScore, growthScore, brandScore, learningScore, verified, saved]
+      properties:
+        id: { type: number }
+        company: { type: string }
+        role: { type: string }
+        location: { type: string }
+        mode: { type: string }
+        stipend: { type: string }
+        stipendMin: { type: number }
+        eligibility: { type: string }
+        skills:
+          type: array
+          items: { type: string }
+        deadline: { type: string }
+        applyUrl: { type: string }
+        source: { type: string }
+        sourceUrl: { type: string }
+        hrEmail: { type: ["string", "null"] }
+        recruiterLinkedin: { type: ["string", "null"] }
+        fitScore: { type: number }
+        salaryScore: { type: number }
+        growthScore: { type: number }
+        brandScore: { type: number }
+        learningScore: { type: number }
+        verified: { type: boolean }
+        saved: { type: boolean }
+        lastChecked: { type: string }
+        note: { type: ["string", "null"] }
+    OpportunityUpdate:
+      type: object
+      properties:
+        saved: { type: boolean }
+    Application:
+      type: object
+      required: [id, opportunityId, company, role, stage, appliedOn, nextAction]
+      properties:
+        id: { type: number }
+        opportunityId: { type: number }
+        company: { type: string }
+        role: { type: string }
+        stage: { type: string }
+        appliedOn: { type: string }
+        nextAction: { type: string }
+        notes: { type: ["string", "null"] }
+    ApplicationInput:
+      type: object
+      required: [opportunityId, company, role, stage, nextAction]
+      properties:
+        opportunityId: { type: number }
+        company: { type: string }
+        role: { type: string }
+        stage: { type: string }
+        nextAction: { type: string }
+        notes: { type: string }
+    ApplicationUpdate:
+      type: object
+      properties:
+        stage: { type: string }
+        nextAction: { type: string }
+        notes: { type: string }
+    Profile:
+      type: object
+      required: [name, degree, year, country, locations, skills, interests, target]
+      properties:
+        name: { type: string }
+        degree: { type: string }
+        year: { type: string }
+        country: { type: string }
+        locations:
+          type: array
+          items: { type: string }
+        skills:
+          type: array
+          items: { type: string }
+        interests:
+          type: array
+          items: { type: string }
+        target: { type: string }
+    ProfileUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        degree: { type: string }
+        year: { type: string }
+        locations:
+          type: array
+          items: { type: string }
+        skills:
+          type: array
+          items: { type: string }
+        interests:
+          type: array
+          items: { type: string }
+        target: { type: string }
+    DashboardSummary:
+      type: object
+      required: [totalOpportunities, verifiedCount, topMatch, applications, responseRate, daysLeft, recommendedToday]
+      properties:
+        totalOpportunities: { type: number }
+        verifiedCount: { type: number }
+        topMatch: { type: number }
+        applications: { type: number }
+        responseRate: { type: number }
+        daysLeft: { type: number }
+        recommendedToday:
+          type: array
+          items:
+            $ref: "#/components/schemas/Opportunity"
+
