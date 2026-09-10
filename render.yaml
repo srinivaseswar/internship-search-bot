@@ -2,28 +2,29 @@
 # Docs: https://render.com/docs/blueprint-spec
 #
 # Deployment mode: DEMO (DEMO_MODE=true, no database required)
-# To switch to production with real Postgres: see comments below.
-#
-# NOTE: The actual project lives in the internship-command-center/ subdirectory.
-# All build/start commands cd into it first.
 
 services:
   - type: web
     name: internship-command-center
     runtime: node
     plan: free
-    region: singapore           # closest to India; change to frankfurt/ohio as needed
+    region: singapore
     branch: main
 
-    # ── Build (runs from repo root) ───────────────────────────────────────────
+    # ── Build ─────────────────────────────────────────────────────────────────
+    # Fix: npm -g writes to /usr/lib which is read-only on Render.
+    # Solution: redirect npm global prefix to $HOME/.npm-global (writable),
+    # add it to PATH, then install pnpm@10 and run the workspace builds.
     buildCommand: >-
       cd internship-command-center &&
+      npm config set prefix $HOME/.npm-global &&
       npm install -g pnpm@10 &&
+      export PATH=$HOME/.npm-global/bin:$PATH &&
       pnpm install --frozen-lockfile &&
       pnpm --filter @workspace/internship-command-center run build &&
       pnpm --filter @workspace/api-server run build
 
-    # ── Start (runs from repo root) ───────────────────────────────────────────
+    # ── Start ─────────────────────────────────────────────────────────────────
     startCommand: node internship-command-center/artifacts/api-server/dist/index.mjs
 
     # ── Health check ──────────────────────────────────────────────────────────
@@ -34,26 +35,19 @@ services:
       - key: NODE_ENV
         value: production
 
-      # DEMO_MODE=true → API uses in-memory seed data (no database needed).
-      # Set to "false" and uncomment DATABASE_URL below for real Postgres.
       - key: DEMO_MODE
         value: "true"
 
-      # Render automatically injects PORT for web services — do not set it here.
+      # Render automatically injects PORT for web services.
 
       # DATABASE_URL — only needed when DEMO_MODE=false.
-      # Uncomment and switch to fromDatabase when you add the database block:
       # - key: DATABASE_URL
       #   fromDatabase:
       #     name: internship-db
       #     property: connectionString
 
 # ── PostgreSQL (production mode only) ────────────────────────────────────────
-# Uncomment this block when you are ready to use a real database:
-# Also add to buildCommand before the pnpm build steps:
-#   pnpm --filter @workspace/db run push &&
-#
 # databases:
 #   - name: internship-db
-#     plan: free          # Free tier; expires after 90 days on Render
+#     plan: free
 #     region: singapore
