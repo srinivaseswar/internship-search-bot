@@ -1,6 +1,8 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { starterOpportunities } from "./lib/career-data";
@@ -67,5 +69,19 @@ if (process.env.DEMO_MODE === "true") {
 }
 
 app.use("/api", router);
+
+// In production, serve the Vite-built React frontend and handle SPA routing.
+// __dirname is provided by esbuild's banner (set to the dist/ directory).
+if (process.env.NODE_ENV === "production") {
+  const frontendDist = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../internship-command-center/dist/public",
+  );
+  app.use(express.static(frontendDist));
+  // SPA fallback: return index.html for any non-API route
+  app.get("*", (_req, res) => {
+    res.sendFile(resolve(frontendDist, "index.html"));
+  });
+}
 
 export default app;
