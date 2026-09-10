@@ -1,12 +1,11 @@
 ﻿# Render Blueprint — Internship Command Center
 # Docs: https://render.com/docs/blueprint-spec
 #
-# Deployment mode: DEMO  (DEMO_MODE=true, no database required)
-# To switch to production with a real Postgres DB:
-#   1. Uncomment the `databases:` block below
-#   2. Change DEMO_MODE value to "false"
-#   3. Change DATABASE_URL `value:` to `fromDatabase:` (see comment inline)
-#   4. Add `pnpm --filter @workspace/db run push &&` to the buildCommand
+# Deployment mode: DEMO (DEMO_MODE=true, no database required)
+# To switch to production with real Postgres: see comments below.
+#
+# NOTE: The actual project lives in the internship-command-center/ subdirectory.
+# All build/start commands cd into it first.
 
 services:
   - type: web
@@ -14,23 +13,20 @@ services:
     runtime: node
     plan: free
     region: singapore           # closest to India; change to frankfurt/ohio as needed
-    branch: main                # change to your default branch if different
+    branch: main
 
-    # ── Build ────────────────────────────────────────────────────────────────
-    # 1. Install pnpm globally
-    # 2. Install all workspace dependencies
-    # 3. Build the Vite frontend (outputs to artifacts/internship-command-center/dist/public)
-    # 4. Build the Express API (outputs to artifacts/api-server/dist/index.mjs)
+    # ── Build (runs from repo root) ───────────────────────────────────────────
     buildCommand: >-
+      cd internship-command-center &&
       npm install -g pnpm@10 &&
       pnpm install --frozen-lockfile &&
       pnpm --filter @workspace/internship-command-center run build &&
       pnpm --filter @workspace/api-server run build
 
-    # ── Start ────────────────────────────────────────────────────────────────
-    startCommand: node artifacts/api-server/dist/index.mjs
+    # ── Start (runs from repo root) ───────────────────────────────────────────
+    startCommand: node internship-command-center/artifacts/api-server/dist/index.mjs
 
-    # ── Health check ─────────────────────────────────────────────────────────
+    # ── Health check ──────────────────────────────────────────────────────────
     healthCheckPath: /api/health
 
     # ── Environment variables ─────────────────────────────────────────────────
@@ -39,11 +35,11 @@ services:
         value: production
 
       # DEMO_MODE=true → API uses in-memory seed data (no database needed).
-      # Set to "false" if you add a real Postgres database below.
+      # Set to "false" and uncomment DATABASE_URL below for real Postgres.
       - key: DEMO_MODE
         value: "true"
 
-      # Render injects PORT automatically for web services — do not set it here.
+      # Render automatically injects PORT for web services — do not set it here.
 
       # DATABASE_URL — only needed when DEMO_MODE=false.
       # Uncomment and switch to fromDatabase when you add the database block:
@@ -54,6 +50,8 @@ services:
 
 # ── PostgreSQL (production mode only) ────────────────────────────────────────
 # Uncomment this block when you are ready to use a real database:
+# Also add to buildCommand before the pnpm build steps:
+#   pnpm --filter @workspace/db run push &&
 #
 # databases:
 #   - name: internship-db
