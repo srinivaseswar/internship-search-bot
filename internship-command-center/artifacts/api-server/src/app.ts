@@ -78,8 +78,9 @@ if (process.env.NODE_ENV === "production") {
     "../../internship-command-center/dist/public",
   );
   app.use(express.static(frontendDist));
-  // SPA fallback: return index.html for any non-API route
-  app.get("*", (_req, res) => {
+  // SPA fallback: return index.html for any non-API route.
+  // Express 5 requires named wildcard syntax — bare "*" is no longer valid.
+  app.get("/{*path}", (_req, res) => {
     res.sendFile(resolve(frontendDist, "index.html"));
   });
 }
