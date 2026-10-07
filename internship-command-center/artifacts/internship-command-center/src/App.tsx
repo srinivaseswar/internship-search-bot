@@ -20,6 +20,9 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Shell, PageHeader, LoadingBlocks, ErrorState } from '@/components/shell';
 import { OpportunityCard } from '@/components/opportunity-card';
+import '@/lib/auth';
+import { isAuthenticated, getUser, clearAuth, type AuthUser } from '@/lib/auth';
+import { LoginPage } from '@/components/login-page';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useSearch } from 'wouter';
 import {
   ArrowRight,
@@ -29,6 +32,7 @@ import {
   Check,
   ChevronDown,
   CircleAlert,
+  Clock,
   ExternalLink,
   FileText,
   Filter,
@@ -37,18 +41,20 @@ import {
   Heart,
   Layers3,
   ListChecks,
+  LogOut,
   MapPin,
   Pencil,
   Plus,
   Search,
   Send,
   Sparkles,
+  Star,
   Target,
   TrendingUp,
   UserRound,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
 const queryClient = new QueryClient();
@@ -75,7 +81,7 @@ function SectionTitle({ children, href, action }: { children: ReactNode; href?: 
   );
 }
 
-function Home() {
+function Home({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
   const summaryQuery = useGetDashboardSummary();
   const feedQuery = useListOpportunities({ sort: 'fit' });
   const applicationsQuery = useListApplications();
@@ -100,13 +106,14 @@ function Home() {
   const applications = applicationsQuery.data ?? [];
   const feed = (feedQuery.data ?? []).slice(0, 6);
 
-  if (summaryQuery.isLoading) return <PageShell><LoadingBlocks count={5} /></PageShell>;
-  if (summaryQuery.isError || !summary) return <PageShell><ErrorState onRetry={() => summaryQuery.refetch()} /></PageShell>;
+  if (summaryQuery.isLoading) return <PageShell><UserBar user={user} onLogout={onLogout} /><LoadingBlocks count={5} /></PageShell>;
+  if (summaryQuery.isError || !summary) return <PageShell><UserBar user={user} onLogout={onLogout} /><ErrorState onRetry={() => summaryQuery.refetch()} /></PageShell>;
 
   const recommendedToday = summary.recommendedToday ?? [];
 
   return (
     <PageShell>
+      <UserBar user={user} onLogout={onLogout} />
       <PageHeader
         eyebrow="Tuesday · 30-day sprint"
         title={<>Make this the week<br /><span className="text-primary">you get momentum.</span></>}
@@ -174,12 +181,29 @@ function Home() {
   );
 }
 
-function Opportunities() {
-  const [filters, setFilters] = useState({ search: '', location: '', mode: '', focus: '', minStipend: undefined as number | undefined, sort: 'fit' });
+function Opportunities({ onLogout }: { onLogout: () => void }) {
+  const [filters, setFilters] = useState({
+    search: '',
+    location: '',
+    mode: '',
+    focus: '',
+    minStipend: undefined as number | undefined,
+    sort: 'rank',
+    days: 30,
+    reputed: false,
+    remote: false,
+  });
   const [selected, setSelected] = useState<Opportunity | null>(null);
   const search = useSearch();
   const queryClientInstance = useQueryClient();
-  const query = useListOpportunities(filters);
+  const query = useListOpportunities({
+    search: filters.search || undefined,
+    location: filters.location || undefined,
+    mode: filters.mode || undefined,
+    focus: filters.focus || undefined,
+    minStipend: filters.minStipend,
+    sort: filters.sort,
+  });
   const saveMutation = useUpdateOpportunity({
     mutation: {
       onSuccess: () => {
@@ -196,24 +220,40 @@ function Opportunities() {
       },
     },
   });
-  const opportunities = query.data ?? [];
+  const opportunities = useMemo(() => {
+    let list = query.data ?? [];
+    if (filters.reputed) list = list.filter(o => (o as any).companyTier <= 2);
+    if (filters.remote) list = list.filter(o => o.mode === 'Remote');
+    return list;
+  }, [query.data, filters.reputed, filters.remote]);
+  
   useEffect(() => {
     const id = Number(new URLSearchParams(search).get('id'));
     if (id) setSelected(opportunities.find((opportunity) => opportunity.id === id) ?? null);
   }, [search, opportunities]);
   return (
     <PageShell>
+      <UserBar onLogout={onLogout} />
       <PageHeader eyebrow="Opportunity radar" title="Find your next opening." description="Ranked against your skills, locations, interests, and 30-day target. Verify the exact role before you apply." action={<div className="verified-pill"><BadgeCheck size={15} /> Official links only</div>} />
       <div className="search-bar">
         <Search size={18} className="text-muted-foreground" />
         <input aria-label="Search internships" placeholder="Search roles, companies, or skills" value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} />
-        <select aria-label="Sort opportunities" value={filters.sort} onChange={(event) => setFilters((current) => ({ ...current, sort: event.target.value }))}><option value="fit">Best fit</option><option value="salary">Salary potential</option><option value="brand">Brand value</option><option value="learning">Learning upside</option></select>
+        <select aria-label="Sort opportunities" value={filters.sort} onChange={(event) => setFilters((current) => ({ ...current, sort: event.target.value }))}>
+          <option value="rank">Best rank</option>
+          <option value="fit">Best fit</option>
+          <option value="salary">Salary potential</option>
+          <option value="brand">Brand value</option>
+          <option value="learning">Learning upside</option>
+          <option value="newest">Newest first</option>
+        </select>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         <FilterSelect label="Location" value={filters.location} options={['', 'Chennai', 'Bangalore', 'Hyderabad', 'Pune', 'Remote', 'India']} onChange={(value) => setFilters((current) => ({ ...current, location: value }))} />
         <FilterSelect label="Work mode" value={filters.mode} options={['', 'Remote', 'Hybrid', 'On-site']} onChange={(value) => setFilters((current) => ({ ...current, mode: value }))} />
         <FilterSelect label="Focus" value={filters.focus} options={['', 'AI', 'Full Stack', 'Backend', 'Cloud', 'Cybersecurity']} onChange={(value) => setFilters((current) => ({ ...current, focus: value }))} />
         <button className={`filter-chip ${filters.minStipend ? 'active' : ''}`} onClick={() => setFilters((current) => ({ ...current, minStipend: current.minStipend ? undefined : 10000 }))}><IndianRupeeMark /> ₹10k+ stipend</button>
+        <button className={`filter-chip ${filters.reputed ? 'active' : ''}`} onClick={() => setFilters(f => ({ ...f, reputed: !f.reputed }))}><Star size={13} /> Reputed Companies</button>
+        <button className={`filter-chip ${filters.remote ? 'active' : ''}`} onClick={() => setFilters(f => ({ ...f, remote: !f.remote }))}>Remote Only</button>
       </div>
       <div className="mt-8 flex items-center justify-between"><p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">{opportunities.length}</span> matches in your radar</p><div className="inline-flex items-center gap-2 text-xs text-muted-foreground"><Filter size={13} /> Updated for today</div></div>
       {query.isLoading ? <LoadingBlocks count={5} /> : query.isError ? <ErrorState onRetry={() => query.refetch()} /> : (
@@ -227,7 +267,7 @@ function Opportunities() {
   );
 }
 
-function Applications() {
+function Applications({ onLogout }: { onLogout: () => void }) {
   const query = useListApplications();
   const queryClientInstance = useQueryClient();
   const updateMutation = useUpdateApplication({
@@ -240,6 +280,7 @@ function Applications() {
   }, [query.data]);
   return (
     <PageShell>
+      <UserBar onLogout={onLogout} />
       <PageHeader eyebrow="Application tracker" title="Turn interest into follow-through." description="Every saved role deserves a next action. Keep your pipeline visible and follow up while the opportunity is still warm." action={<Link href="/opportunities" className="primary-button"><Plus size={16} /> Add application</Link>} />
       {query.isLoading ? <LoadingBlocks count={4} /> : query.isError ? <ErrorState onRetry={() => query.refetch()} /> : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -250,13 +291,13 @@ function Applications() {
   );
 }
 
-function Profile() {
+function Profile({ onLogout }: { onLogout: () => void }) {
   const query = useGetProfile();
   const updateMutation = useUpdateProfile();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Profile | null>(null);
-  if (query.isLoading) return <PageShell><LoadingBlocks count={4} /></PageShell>;
-  if (query.isError || !query.data) return <PageShell><ErrorState onRetry={() => query.refetch()} /></PageShell>;
+  if (query.isLoading) return <PageShell><UserBar onLogout={onLogout} /><LoadingBlocks count={4} /></PageShell>;
+  if (query.isError || !query.data) return <PageShell><UserBar onLogout={onLogout} /><ErrorState onRetry={() => query.refetch()} /></PageShell>;
   const profile = query.data;
   const current = draft ?? profile;
   const save = () => {
@@ -265,6 +306,7 @@ function Profile() {
   };
   return (
     <PageShell>
+      <UserBar onLogout={onLogout} />
       <PageHeader eyebrow="Your profile" title="Make your story searchable." description="This profile powers your fit scores and gives every application a sharper starting point." action={editing ? <div className="flex gap-2"><button className="secondary-button" onClick={() => { setEditing(false); setDraft(null); }}>Cancel</button><button className="primary-button" onClick={save}><Check size={16} /> Save profile</button></div> : <button className="primary-button" onClick={() => { setDraft(profile); setEditing(true); }}><Pencil size={15} /> Edit profile</button>} />
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <section className="profile-card">
@@ -316,8 +358,31 @@ function ProfileField({ label, value, editing, onChange }: { label: string; valu
 function IndianRupeeMark() { return <span className="font-display text-sm font-bold">₹</span>; }
 function CopyMark() { return <span className="grid h-4 w-4 place-items-center rounded border border-current text-[9px]">2</span>; }
 
-function Router() {
-  return <Switch><Route path="/" component={Home} /><Route path="/opportunities" component={Opportunities} /><Route path="/applications" component={Applications} /><Route path="/profile" component={Profile} /><Route><NotFoundInline /></Route></Switch>;
+function UserBar({ user, onLogout }: { user?: AuthUser; onLogout?: () => void }) {
+  if (!user || !onLogout) return null;
+  return (
+    <div className="flex items-center justify-between border-b border-border/50 px-4 py-2 text-xs text-muted-foreground bg-background/80 backdrop-blur sticky top-0 z-40">
+      <span className="font-medium text-foreground">{user.name}</span>
+      <button
+        onClick={onLogout}
+        className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
+      >
+        <LogOut size={13} /> Sign out
+      </button>
+    </div>
+  );
+}
+
+function Router({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
+  return (
+    <Switch>
+      <Route path="/" component={() => <Home user={user} onLogout={onLogout} />} />
+      <Route path="/opportunities" component={() => <Opportunities onLogout={onLogout} />} />
+      <Route path="/applications" component={() => <Applications onLogout={onLogout} />} />
+      <Route path="/profile" component={() => <Profile onLogout={onLogout} />} />
+      <Route><NotFoundInline /></Route>
+    </Switch>
+  );
 }
 
 function NotFoundInline() {
@@ -326,7 +391,31 @@ function NotFoundInline() {
 }
 
 function App() {
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
+  const [user, setUser] = useState<AuthUser | null>(getUser);
+
+  const queryClientRef = useRef(queryClient);
+  useEffect(() => {
+    if (!user) return;
+    const id = setInterval(() => {
+      queryClientRef.current.invalidateQueries();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [user]);
+
+  if (!user) {
+    return <LoginPage onSuccess={setUser} />;
+  }
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          <Router user={user} onLogout={() => { clearAuth(); setUser(null); }} />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
 }
 
 export default App;

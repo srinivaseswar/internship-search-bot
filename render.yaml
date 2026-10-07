@@ -1,7 +1,7 @@
 ﻿# Render Blueprint — Internship Command Center
 # Docs: https://render.com/docs/blueprint-spec
 #
-# Deployment mode: DEMO (DEMO_MODE=true, no database required)
+# Deployment mode: PRODUCTION (real PostgreSQL, auth enabled)
 
 services:
   - type: web
@@ -11,10 +11,6 @@ services:
     region: singapore
     branch: main
 
-    # ── Build ─────────────────────────────────────────────────────────────────
-    # Fix: npm -g writes to /usr/lib which is read-only on Render.
-    # Solution: redirect npm global prefix to $HOME/.npm-global (writable),
-    # add it to PATH, then install pnpm@10 and run the workspace builds.
     buildCommand: >-
       cd internship-command-center &&
       npm config set prefix $HOME/.npm-global &&
@@ -24,30 +20,29 @@ services:
       pnpm --filter @workspace/internship-command-center run build &&
       pnpm --filter @workspace/api-server run build
 
-    # ── Start ─────────────────────────────────────────────────────────────────
     startCommand: node internship-command-center/artifacts/api-server/dist/index.mjs
 
-    # ── Health check ──────────────────────────────────────────────────────────
-    healthCheckPath: /api/health
+    healthCheckPath: /api/healthz
 
-    # ── Environment variables ─────────────────────────────────────────────────
     envVars:
       - key: NODE_ENV
         value: production
 
       - key: DEMO_MODE
+        value: "false"
+
+      - key: CRON_ENABLED
         value: "true"
 
-      # Render automatically injects PORT for web services.
+      - key: JWT_SECRET
+        generateValue: true
 
-      # DATABASE_URL — only needed when DEMO_MODE=false.
-      # - key: DATABASE_URL
-      #   fromDatabase:
-      #     name: internship-db
-      #     property: connectionString
+      - key: DATABASE_URL
+        fromDatabase:
+          name: internship-db
+          property: connectionString
 
-# ── PostgreSQL (production mode only) ────────────────────────────────────────
-# databases:
-#   - name: internship-db
-#     plan: free
-#     region: singapore
+databases:
+  - name: internship-db
+    plan: free
+    region: singapore

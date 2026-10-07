@@ -27,6 +27,15 @@ export const opportunitiesTable = pgTable("opportunities", {
   saved: boolean("saved").notNull().default(false),
   lastChecked: date("last_checked", { mode: "string" }).notNull(),
   note: text("note"),
+  // --- upgrade: rolling 30-day system ---
+  publishedAt: date("published_at", { mode: "string" }),
+  firstSeenAt: date("first_seen_at", { mode: "string" }),
+  lastSeenAt: date("last_seen_at", { mode: "string" }),
+  isActive: boolean("is_active").notNull().default(true),
+  companyTier: integer("company_tier").notNull().default(3),
+  rankScore: integer("rank_score").notNull().default(50),
+  sourceJobId: text("source_job_id"),
+  externalSource: text("external_source"),
 });
 
 export const applicationsTable = pgTable("applications", {
@@ -52,9 +61,18 @@ export const profilesTable = pgTable("profiles", {
   target: text("target").notNull(),
 });
 
+export const usersTable = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  name: text("name").notNull(),
+  createdAt: text("created_at").notNull().default(new Date().toISOString()),
+});
+
 export const insertOpportunitySchema = createInsertSchema(opportunitiesTable).omit({ id: true });
 export const insertApplicationSchema = createInsertSchema(applicationsTable).omit({ id: true });
 export const insertProfileSchema = createInsertSchema(profilesTable).omit({ id: true });
+export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true });
 
 export type Opportunity = typeof opportunitiesTable.$inferSelect;
 export type InsertOpportunity = z.infer<typeof insertOpportunitySchema>;
@@ -62,3 +80,5 @@ export type Application = typeof applicationsTable.$inferSelect;
 export type InsertApplication = z.infer<typeof insertApplicationSchema>;
 export type Profile = typeof profilesTable.$inferSelect;
 export type InsertProfile = z.infer<typeof insertProfileSchema>;
+export type User = typeof usersTable.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
